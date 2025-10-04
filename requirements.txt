@@ -1,0 +1,13 @@
+langchain
+langchain-community
+langchain-ollama
+langchain-openai
+neo4j 
+py2neo 
+pandas
+scikit-learn
+python-dotenv
+streamlit
+fuzzywuzzy 
+python-Levenshtein
+deepeval
