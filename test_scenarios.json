@@ -1,0 +1,64 @@
+{
+  "test_scenarios": [
+    {
+      "scenario_id": "vegetarian_urgent",
+      "input": "Recommend recipes using my ingredients",
+      "context": {
+        "pantry_ingredients": ["chicken (2 days)", "spinach (1 day)", "tomatoes (5 days)", "pasta (30 days)"],
+        "dietary_constraints": "vegetarian",
+        "urgent_ingredients": ["chicken", "spinach"],
+        "regular_ingredients": ["tomatoes", "pasta"],
+        "expected_constraint": "vegetarian",
+        "expected_urgent_usage": ["spinach"]
+      }
+    },
+    {
+      "scenario_id": "gluten_free_mixed",
+      "input": "What can I make for dinner?",
+      "context": {
+        "pantry_ingredients": ["beef (3 days)", "rice (60 days)", "broccoli (2 days)", "soy sauce (90 days)"],
+        "dietary_constraints": "gluten-free",
+        "urgent_ingredients": ["beef", "broccoli"],
+        "regular_ingredients": ["rice", "soy sauce"],
+        "expected_constraint": "gluten-free",
+        "expected_urgent_usage": ["beef", "broccoli"]
+      }
+    },
+    {
+      "scenario_id": "vegan_high_perishable",
+      "input": "Find vegan recipes",
+      "context": {
+        "pantry_ingredients": ["tofu (4 days)", "mushrooms (1 day)", "bell peppers (3 days)", "quinoa (45 days)"],
+        "dietary_constraints": "vegan",
+        "urgent_ingredients": ["tofu", "mushrooms", "bell peppers"],
+        "regular_ingredients": ["quinoa"],
+        "expected_constraint": "vegan",
+        "expected_urgent_usage": ["tofu", "mushrooms", "bell peppers"]
+      }
+    },
+    {
+      "scenario_id": "no_constraints_multiple_urgent",
+      "input": "Suggest recipes to reduce food waste",
+      "context": {
+        "pantry_ingredients": ["fish (1 day)", "asparagus (2 days)", "lemons (7 days)", "potatoes (20 days)"],
+        "dietary_constraints": "none",
+        "urgent_ingredients": ["fish", "asparagus"],
+        "regular_ingredients": ["lemons", "potatoes"],
+        "expected_constraint": "none",
+        "expected_urgent_usage": ["fish", "asparagus"]
+      }
+    },
+    {
+      "scenario_id": "dairy_allergy",
+      "input": "I have dairy allergy, recommend recipes",
+      "context": {
+        "pantry_ingredients": ["milk (2 days)", "eggs (5 days)", "flour (60 days)", "berries (3 days)"],
+        "dietary_constraints": "dairy-free",
+        "urgent_ingredients": ["milk", "berries"],
+        "regular_ingredients": ["eggs", "flour"],
+        "expected_constraint": "dairy-free",
+        "expected_urgent_usage": ["berries"]
+      }
+    }
+  ]
+}
