@@ -1,0 +1,184 @@
+{
+  "test_scenarios": [
+    {
+      "scenario_id": "veg_leftovers_quick",
+      "input": "What's a quick vegetarian dinner I can make with spinach, chickpeas, and rice?",
+      "context": {
+        "pantry_ingredients": ["spinach", "canned chickpeas", "tomatoes", "rice", "lemon"],
+        "dietary_constraints": "vegetarian",
+        "allergies": "peanut"
+      }
+    },
+    {
+      "scenario_id": "gluten_free_weeknight",
+      "input": "I need gluten-free dinner ideas for tonight - I have tofu and broccoli.",
+      "context": {
+        "pantry_ingredients": ["rice", "broccoli", "tofu", "tamari", "ginger"],
+        "dietary_constraints": "gluten-free",
+        "allergies": "shellfish"
+      }
+    },
+    {
+      "scenario_id": "vegan_brunch_natural",
+      "input": "Looking for some easy vegan brunch recipes for the weekend.",
+      "context": {
+        "pantry_ingredients": ["tofu", "spinach", "tomatoes", "bread", "avocado"],
+        "dietary_constraints": "vegan",
+        "allergies": "soy"
+      }
+    },
+    {
+      "scenario_id": "keto_quick_solve",
+      "input": "Help! I need a keto dinner ready in 20 minutes using ground beef and cheese.",
+      "context": {
+        "pantry_ingredients": ["ground beef", "cheddar cheese", "eggs", "lettuce", "sour cream"],
+        "dietary_constraints": "keto",
+        "allergies": "egg"
+      }
+    },
+    {
+      "scenario_id": "allergy_friendly_solution",
+      "input": "Need dairy-free and nut-free lunch ideas for my kids' school lunches.",
+      "context": {
+        "pantry_ingredients": ["bread", "chicken", "carrots", "sunflower butter", "jam"],
+        "dietary_constraints": "dairy-free",
+        "allergies": "peanut"
+      }
+    },
+    {
+      "scenario_id": "pantry_challenge",
+      "input": "What can I make with just pasta, canned tomatoes, and some basic spices?",
+      "context": {
+        "pantry_ingredients": ["pasta", "canned tomatoes", "garlic", "olive oil", "dried basil"],
+        "dietary_constraints": "vegetarian",
+        "allergies": "wheat"
+      }
+    },
+    {
+      "scenario_id": "comfort_food_craving",
+      "input": "I'm craving something warm and comforting - got any vegetarian comfort food recipes?",
+      "context": {
+        "pantry_ingredients": ["potatoes", "cheese", "milk", "onions", "vegetable broth"],
+        "dietary_constraints": "vegetarian",
+        "allergies": "milk"
+      }
+    },
+    {
+      "scenario_id": "light_refreshing_mood",
+      "input": "Want something light and refreshing for lunch - maybe a salad with chicken?",
+      "context": {
+        "pantry_ingredients": ["chicken breast", "mixed greens", "cucumber", "lemon", "olive oil"],
+        "dietary_constraints": "none",
+        "allergies": "egg"
+      }
+    },
+    {
+      "scenario_id": "hearty_appetite",
+      "input": "Need a really filling, high-protein meal after my workout.",
+      "context": {
+        "pantry_ingredients": ["chicken", "quinoa", "black beans", "sweet potato", "broccoli"],
+        "dietary_constraints": "none",
+        "allergies": "soy"
+      }
+    },
+    {
+      "scenario_id": "meal_prep_specific",
+      "input": "Looking for gluten-free meal prep recipes that will last 4 days in the fridge.",
+      "context": {
+        "pantry_ingredients": ["chicken", "rice", "frozen vegetables", "eggs", "sweet potatoes"],
+        "dietary_constraints": "gluten-free",
+        "allergies": "fish"
+      }
+    },
+    {
+      "scenario_id": "diet_specific",
+      "input": "Need a low-carb dinner under 10g net carbs using ground turkey.",
+      "context": {
+        "pantry_ingredients": ["ground turkey", "zucchini", "bell peppers", "onion", "tomato sauce"],
+        "dietary_constraints": "low-carb",
+        "allergies": "dairy"
+      }
+    },
+    {
+      "scenario_id": "equipment_specific",
+      "input": "What's a good one-pan vegan recipe I can make in the oven?",
+      "context": {
+        "pantry_ingredients": ["chickpeas", "sweet potatoes", "broccoli", "olive oil", "spices"],
+        "dietary_constraints": "vegan",
+        "allergies": "sesame"
+      }
+    },
+    {
+      "scenario_id": "rushed_weeknight",
+      "input": "It's 6 PM and I'm hungry! What's the fastest dinner I can make with eggs and vegetables?",
+      "context": {
+        "pantry_ingredients": ["eggs", "bell peppers", "onion", "cheese", "tortillas"],
+        "dietary_constraints": "vegetarian",
+        "allergies": "wheat"
+      }
+    },
+    {
+      "scenario_id": "special_occasion",
+      "input": "Want to make a fancy gluten-free dessert for a dinner party this weekend.",
+      "context": {
+        "pantry_ingredients": ["dark chocolate", "coconut milk", "berries", "almond flour", "honey"],
+        "dietary_constraints": "gluten-free",
+        "allergies": "tree-nut"
+      }
+    },
+    {
+      "scenario_id": "weekend_project",
+      "input": "Got some time on Sunday - what's a fun vegan baking project I can try?",
+      "context": {
+        "pantry_ingredients": ["flour", "bananas", "oats", "maple syrup", "coconut oil"],
+        "dietary_constraints": "vegan",
+        "allergies": "soy, peanut"
+      }
+    },
+    {
+      "scenario_id": "direct_question_veg",
+      "input": "What's a good vegetarian recipe using lentils and sweet potatoes?",
+      "context": {
+        "pantry_ingredients": ["lentils", "sweet potatoes", "onion", "garlic", "vegetable broth"],
+        "dietary_constraints": "vegetarian",
+        "allergies": "celery"
+      }
+    },
+    {
+      "scenario_id": "help_question",
+      "input": "Can you help me use up this leftover chicken and rice in a new way?",
+      "context": {
+        "pantry_ingredients": ["cooked chicken", "cooked rice", "eggs", "tamari", "frozen peas"],
+        "dietary_constraints": "none",
+        "allergies": "shellfish"
+      }
+    },
+    {
+      "scenario_id": "suggestion_question",
+      "input": "Do you have any suggestions for dairy-free smoothies that are actually filling?",
+      "context": {
+        "pantry_ingredients": ["frozen bananas", "spinach", "oat milk", "protein powder", "sunflower seeds"],
+        "dietary_constraints": "dairy-free",
+        "allergies": "peanut, tree-nut"
+      }
+    },
+    {
+      "scenario_id": "multi_allergy_challenge",
+      "input": "Need a family-friendly dinner that works with multiple food allergies.",
+      "context": {
+        "pantry_ingredients": ["quinoa", "black beans", "corn", "avocado", "lime"],
+        "dietary_constraints": "vegan",
+        "allergies": "soy, wheat, sesame, tree-nut"
+      }
+    },
+    {
+      "scenario_id": "baking_with_allergies",
+      "input": "Looking for a birthday cake recipe that's egg-free and nut-free.",
+      "context": {
+        "pantry_ingredients": ["flour", "sugar", "baking soda", "vinegar", "oil", "cocoa powder"],
+        "dietary_constraints": "vegetarian",
+        "allergies": "egg, peanut"
+      }
+    }
+  ]
+}
