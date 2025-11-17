@@ -38,25 +38,36 @@ if "chat_history" not in st.session_state:
     st.session_state.allergies = ""
     st.session_state.current_recipes = []  # store last shown recipes
 
-# Shelf Life Parsing Functions
+# Shelf Life Parsing Function
 def parse_shelf_life(shelf_life_str):
-    """Parse shelf life string into days"""
-
-    # No expiration
-    if not shelf_life_str or pd.isna(shelf_life_str):
-        return float('inf')  
+    """Parse shelf life string into days - updated for FoodKeeper format"""
     
-    # Extract numbers and unit
-    numbers = re.findall(r"(\d+\.?\d*)", shelf_life_str)
-    unit = re.search(r"(Day|Week|Month|Year)", shelf_life_str, re.IGNORECASE)
-    
-    if not numbers or not unit:
+    # Handle empty strings
+    if not shelf_life_str or pd.isna(shelf_life_str) or shelf_life_str == '':
         return float('inf')
     
-    avg_value = (float(numbers[0]) + (float(numbers[-1]) if len(numbers) > 1 else float(numbers[0]))) / 2
-    unit = unit.group(1).lower()
+    shelf_life_str = str(shelf_life_str).lower().strip()
     
+    # Handle "No expiration" or similar cases
+    if any(term in shelf_life_str for term in ['no expiration', 'indefinite', 'infinite', 'none']):
+        return float('inf')
+    
+    # Handle ranges like "3-5 Days", "1-2 Weeks", etc.
+    range_match = re.search(r'(\d+)\s*-\s*(\d+)\s*(day|week|month|year)', shelf_life_str)
+    if range_match:
+        min_val, max_val, unit = range_match.groups()
+        avg_value = (float(min_val) + float(max_val)) / 2
+    else:
+        # Handle single values like "7 Days", "2 Weeks", etc.
+        single_match = re.search(r'(\d+)\s*(day|week|month|year)', shelf_life_str)
+        if single_match:
+            min_val, unit = single_match.groups()
+            avg_value = float(min_val)
+        else:
+            return float('inf')
+
     # Convert to days
+    unit = unit.lower()
     if unit == 'day':
         return avg_value
     elif unit == 'week':
@@ -199,88 +210,126 @@ def filter_recipes_by_preferences(recipes, dietary_needs):
 # Neo4j Recipe Recommendation function
 def get_recipe_recommendations(ingredient_names, dietary_needs="", allergies=""):
     with driver.session() as session:
-        # get all shelf life data for the ingredients
-        ingredients_for_query = [str(x).lower() for x in ingredient_names]
+        # Use user ingredients
+        cleaned_ingredients = [ing.lower().strip() for ing in ingredient_names if ing.strip()]
+        
+        print(f"DEBUG: User provided: {ingredient_names}")
+        print(f"DEBUG: Using directly: {cleaned_ingredients}")
+        
+        if not cleaned_ingredients:
+            return []
+        
+        # Get shelf life data
         shelf_life_data = session.run("""
             UNWIND $ingredients AS ingredient
             MATCH (i:Ingredient)
             WHERE toLower(trim(i.name)) = toLower(trim(ingredient))
-            RETURN i.name AS name, i.shelf_life AS shelf_life
-            """, ingredients=ingredients_for_query)
+            RETURN i.name AS name, i.shelf_life AS shelf_life, i.category AS category
+            """, ingredients=cleaned_ingredients)
         
-        # process shelf life data
         shelf_life_map = {}
+        matched_ingredients = []
         for record in shelf_life_data:
             name = record["name"]
             shelf_life = record["shelf_life"]
+            category = record["category"]
             days = parse_shelf_life(shelf_life)
             shelf_life_map[name.lower()] = {
                 "shelf_life": shelf_life,
-                "days_remaining": days
+                "days_remaining": days,
+                "category": category
             }
+            matched_ingredients.append(name.lower())
+            # print(f"🍀 DEBUG: Exact shelf life match: '{name}' -> {shelf_life}")
         
-        # find matching recipes acc to the constraints
-        result = session.run("""
-            // Converting input to list of lowercase strings
-            WITH [x IN $ingredients | toLower(trim(x))] AS searchIngredients
-            
-            // Finding recipes using the ingredients
-            MATCH (r:Recipe)-[:USES]->(i:Ingredient)
-            WHERE toLower(trim(i.name)) IN searchIngredients
-            
-            // Grouping by recipe and count matches
-            WITH r, searchIngredients, collect(i) AS usedIngredients, 
-                 size([(r)-[:USES]->(x) | x]) AS totalIngredients
+        # Show which ingredients didn't match
+        unmatched = [ing for ing in cleaned_ingredients if ing.lower() not in matched_ingredients]
+        # if unmatched:
+        #     print(f"🍄 DEBUG: No shelf life data for: {unmatched}")
 
+        result = session.run("""
+            // Find recipes that use EXACT matches of user's ingredients
+            MATCH (r:Recipe)-[:USES]->(i:Ingredient)
+            WHERE toLower(trim(i.name)) IN $ingredients
+            
+            // Count exact matches
+            WITH r, 
+                 collect(DISTINCT i.name) AS matchedIngredientNames,
+                 size([(r)-[:USES]->(ing) | ing]) AS totalIngredients
             
             RETURN r.title AS title,
-             [(r)-[:USES]->(i) | {name: i.name, category: i.category}] AS ingredients,
-                   size(usedIngredients) AS matches,
+                   r.id AS recipe_id,
+                   [(r)-[:USES]->(i) | {name: i.name, category: i.category, shelf_life: i.shelf_life}] AS ingredients,
+                   size(matchedIngredientNames) AS matches,
                    totalIngredients,
+                   matchedIngredientNames AS matchedNames,
                    coalesce(r.directions, []) AS steps
-            ORDER BY size(usedIngredients) DESC, totalIngredients ASC
+            ORDER BY size(matchedIngredientNames) DESC, totalIngredients ASC
             LIMIT 20
             """, 
-            ingredients=ingredients_for_query,
+            ingredients=[ing.lower() for ing in cleaned_ingredients],
         )
         
         all_recipes = []
+        user_ingredient_count = len(cleaned_ingredients)
+        
         for record in result:
             recipe = dict(record)
-            recipe["coverage"] = recipe["matches"] / float(recipe["totalIngredients"])
             
-            # Calculate urgency information (use category-aware ingredient representations)
+            # Calculate coverage percentages
+            user_coverage = recipe["matches"] / float(user_ingredient_count) if user_ingredient_count > 0 else 0
+            recipe_coverage = recipe["matches"] / float(recipe["totalIngredients"]) if recipe["totalIngredients"] > 0 else 0
+            
+            recipe["user_coverage"] = user_coverage
+            recipe["recipe_coverage"] = recipe_coverage
+            
+            # Track exactly which ingredients are used
+            used_ingredients = recipe["matchedNames"]
             urgent_ingredients = []
-            urgency_score = 0
-            # recipe['ingredients'] may be a list of dicts or list of strings (look into this)
-            for ing in recipe["ingredients"]:
-                if isinstance(ing, dict):
-                    ing_name = ing['name']
-                else:
-                    ing_name = str(ing)
-
-                ing_key = ing_name.lower()
-                ing_data = shelf_life_map.get(ing_key)
-                if ing_data and ing_data["days_remaining"] < 7:
-                    urgent_ingredients.append(f"{ing_name} ({ing_data['days_remaining']} days)")
-                if ing_data:
-                    urgency_score += 1.0 / (ing_data["days_remaining"] + 1)
+            total_urgency_score = 0
             
+            for ing_name in used_ingredients:
+                # Calculate urgency for matched ingredients
+                ing_data = shelf_life_map.get(ing_name.lower())
+                if ing_data:
+                    days_remaining = ing_data["days_remaining"]
+                    if days_remaining < 7:
+                        urgent_ingredients.append(f"{ing_name} ({int(days_remaining)} days)")
+                    if days_remaining < float('inf'):
+                        total_urgency_score += 10.0 / (days_remaining + 1)
+            
+            recipe["used_ingredients"] = used_ingredients
             recipe["urgent_ingredients"] = urgent_ingredients
-            recipe["urgency_score"] = urgency_score
+            recipe["urgency_score"] = total_urgency_score
+            recipe["urgent_count"] = len(urgent_ingredients)
+            
+            # print(f"🦋🦋 DEBUG: '{recipe['title']}' - uses {recipe['matches']} ingredients: {used_ingredients}")
             all_recipes.append(recipe)
         
-        # Apply dietary filtering ONCE
+        # print(f"🌼 DEBUG: Found {len(all_recipes)} recipes before filtering")
+        
+        # Apply dietary filtering
         filtered_recipes = filter_recipes_by_preferences(all_recipes, dietary_needs)
+        # print(f"DEBUG: {len(filtered_recipes)} recipes after dietary filtering")
 
         # Apply allergy filtering
         if allergies:
+            before_allergy = len(filtered_recipes)
             filtered_recipes = [r for r in filtered_recipes if not violates_allergies(r['ingredients'], allergies)]
+            # print(f"DEBUG: {len(filtered_recipes)} recipes after allergy filtering (removed {before_allergy - len(filtered_recipes)})")
 
-        # Sort by urgency score then coverage
-        filtered_recipes.sort(key=lambda x: (-x["urgency_score"], -x["coverage"]))
-        return filtered_recipes[:20]
+        # Prioritize recipes that use the most ingredients
+        if filtered_recipes:
+            filtered_recipes.sort(key=lambda x: (
+                -x["user_coverage"],  # Use most of user's ingredients
+                -x["matches"],        # Maximize number of ingredients used
+                -x["urgency_score"],  # Consider expiration
+                x["totalIngredients"] # Prefer simpler recipes
+            ))
 
+        # print(f"DEBUG: Returning {len(filtered_recipes)} final recipes")
+        return filtered_recipes[:10]
+    
 # Initialize the LLM
 llm = ChatOllama(
     model="llama3.2",
@@ -292,27 +341,35 @@ llm = ChatOllama(
 recipe_prompt = PromptTemplate(
     input_variables=["ingredients", "dietary_needs", "recipe_results", "allergies"],
     template="""
-    You're a professional chef assistant helping reduce food waste. 
-    Recommend recipes prioritizing ingredients that will expire soon.
-    
-    Available ingredients:
+    You're a professional chef assistant helping reduce food waste.
+    Recommend recipes that uses as many as possible ingredients as the user has 
+    available in their pantry, as given by the database below.
+
+    CRITICAL CONSTRAINTS: 
+    - DO NOT invent or modify recipes.
+    - DO NOT add ingredients that aren't in the user's pantry.
+    - If a recipe uses ingredients the user doesn't have, acknowledge this limitation.
+
+
+    Available ingredients in user's pantry:
     {ingredients}
-    
+
     Dietary preferences: {dietary_needs}
     Allergies: {allergies}
 
-    Top matching recipes from database (indicates soon-to-expire ingredients):
+    Top matching recipes from database:
     {recipe_results}
-    
+
     Format your response with:
     For each recipe:
     1. **Recipe Name** (Match Percentage)
-       - Uses: [list of matching ingredients]
-       - Instructions / Directions of the recipe
-    
-    Also include a final tip on the ingredients that need to be prioritized due 
-    to their short shelf life.
-    """
+    - From your pantry: [list of matching ingredients]
+    * Missing: [list any ingredients explicitly required by the recipe that the user does not have in their pantry]
+    - Instructions: [from the database]
+
+    Only recommend recipes that do not contain ingredients conflicting with any of the user's allergies given above
+    Include a tip about prioritizing any remaining ingredients in the user's pantry by urgency.
+"""
 )
 
 # format recipe results for the LLM prompt
@@ -320,9 +377,9 @@ def format_results(recipes):
     recipe_results = []
     for r in recipes:
         title = r['title']
-        coverage = r.get('coverage', 0)
+        coverage = r.get('user_coverage', 0)
         ingredient_names = [ing['name'] if isinstance(ing, dict) else ing for ing in r['ingredients'] ]
-        urgent = r['urgent_ingredients']
+        urgent = r.get('urgent_ingredients', [])
 
         parts = [f"**{title}** ({coverage:.0%} match)"]
         parts.append(f"- Uses: {', '.join(ingredient_names) if ingredient_names else 'None'}")
@@ -350,14 +407,14 @@ def generate_recommendation(pantry, dietary_needs="", allergies=""):
     allergies = ""
     # Try to get allergies from session state if available
     try:
-        import streamlit as st
         allergies = getattr(st.session_state, "allergies", "")
     except Exception:
-        allergies = ""
+        allergies = ""  
+ 
     try:
         recipes = get_recipe_recommendations(pantry_list, dietary_needs or "", allergies or "")
     except Exception:
-        recipes = []
+        return []
 
     recipe_results = format_results(recipes)
 
@@ -434,7 +491,7 @@ def run_streamlit_app():
         referenced_title = None
         if st.session_state.get('current_recipes'):
             for r in st.session_state.current_recipes:
-                title = r['title']
+                title = r.get('title', '')
                 if title and title.lower() in prompt_lower:
                     referenced_title = r
                     break
@@ -455,7 +512,7 @@ def run_streamlit_app():
                 recipe_results = []
                 for r in recipes:
                     recipe_results.append(
-                        f"**{r['title']}** ({r['coverage']:.0%} match)\n"
+                        f"**{r['title']}** ({r['user_coverage']:.0%} match)\n"
                         f"- Uses: {', '.join(i['name'] if isinstance(i, dict) and 'name' in i else str(i) for i in r['ingredients'])}\n"
                         f"{('- URGENT: ' + ', '.join(r['urgent_ingredients'])) if r['urgent_ingredients'] else ''}\n"
                     )
