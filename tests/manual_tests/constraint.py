@@ -54,7 +54,7 @@ def process_excel_with_recommendations(input_file, output_file):
     return df
 
 
-input_excel = "./tests/manual_tests/constraints.xlsx"
+input_excel = "./tests/manual_tests/test_scenarios.xlsx"
 output_excel = "./tests/manual_tests/constraints_output.xlsx"
 
 
