@@ -10,3 +10,6 @@ scikit-learn
 streamlit
 fuzzywuzzy 
 python-Levenshtein
+matplotlib
+seaborn
+replicate

@@ -21,13 +21,11 @@ recipes_df['id'] = recipes_df['id'].astype(str)
 shelf_life_df = pd.read_csv('./data_processed/foodkeeper_shelf_life_processed.csv')
 shelf_life_df['Ingredient'] = shelf_life_df['Ingredient'].astype(str).str.lower().str.strip()
 
-
 def find_best_match(ingredient, choices, threshold):
-    """Find best fuzzy match with lower threshold"""
+    """Find best fuzzy match between recipe ingredient and ingredients from shelf life dataset"""
     if not ingredient:
         return None
-        
-    # Try multiple fuzzy matching strategies
+
     matches = process.extract(ingredient, choices, limit=5, scorer=fuzz.token_sort_ratio)
     
     for match, score in matches:
@@ -37,27 +35,34 @@ def find_best_match(ingredient, choices, threshold):
     return None
 
 def find_shelf_life_data(ner_ingredient, shelf_life_df, foodkeeper_choices):
-    """Find shelf life data"""
     clean_ingredient = ner_ingredient.lower().strip()
-    if not clean_ingredient:
-        return {
-            'matched_ingredient': None,
-            'category': 'Unknown',
-            'shelf_life': 'Unknown',
-            'match_found': False
-        }
     
-    # exact_match = shelf_life_df[shelf_life_df['Ingredient'] == clean_ingredient]
-    # if not exact_match.empty:
-    #     return {
-    #         'matched_ingredient': clean_ingredient,
-    #         'category': exact_match.iloc[0]['Category'],
-    #         'shelf_life': exact_match.iloc[0]['Shelf_Life'],
-    #         'match_found': True
-    #     }
+    # Get the base form of ingredients
+    if clean_ingredient.endswith('s'):
+        base_form = clean_ingredient[:-1]
+    else:
+        base_form = clean_ingredient
     
-    # Fuzzy matching fallback (much simpler since NER is already clean)
-    best_match = find_best_match(clean_ingredient, foodkeeper_choices, threshold=60)
+    # Try multiple variations
+    variations = [
+        clean_ingredient,
+        base_form,
+        f"{clean_ingredient}es",
+        f"{base_form}es"
+    ]
+    
+    for var in variations:
+        exact_match = shelf_life_df[shelf_life_df['Ingredient'] == var]
+        if not exact_match.empty:
+            return {
+                'matched_ingredient': var,
+                'category': exact_match.iloc[0]['Category'],
+                'shelf_life': exact_match.iloc[0]['Shelf_Life'],
+                'match_found': True
+            }
+    
+    # Fuzzy matching
+    best_match = find_best_match(clean_ingredient, foodkeeper_choices, threshold=70)  # Higher threshold
     
     if best_match:
         shelf_data = shelf_life_df[shelf_life_df['Ingredient'] == best_match]
@@ -76,15 +81,57 @@ def find_shelf_life_data(ner_ingredient, shelf_life_df, foodkeeper_choices):
         'match_found': False
     }
 
-
 # Preprocess FoodKeeper dataset
 print("Preprocessing FoodKeeper ingredients...")
 shelf_life_df['cleaned_ingredient'] = shelf_life_df['Ingredient'].str.lower().str.strip()
 foodkeeper_choices = shelf_life_df['cleaned_ingredient'].unique()
 
+def create_knowledge_graph_correct(tx, recipe):
+    # Create Recipe node
+    tx.run("""
+    MERGE (r:Recipe {id: $id})
+    SET r.title = $title,
+        r.source = $source,
+        r.link = $link,
+        r.directions = $directions
+    """, 
+    id=recipe['id'],
+    title=recipe.get('title', ''),
+    source=recipe.get('source', ''),
+    link=recipe.get('link', ''),
+    directions=ast.literal_eval(recipe['directions']) if isinstance(recipe['directions'], str) else recipe['directions']
+    )
+
+    ner_ingredients = ast.literal_eval(recipe['NER']) if isinstance(recipe['NER'], str) else recipe['NER']
+    
+    for ner_ing in ner_ingredients:
+        ner_ing_clean = ner_ing.strip().lower()
+        if not ner_ing_clean:
+            continue
+            
+        shelf_data = find_shelf_life_data(ner_ing_clean, shelf_life_df, foodkeeper_choices)
+        
+        if shelf_data['match_found'] and shelf_data['shelf_life'] not in ['Unknown', 'None', None]:
+            tx.run("""
+            MATCH (r:Recipe {id: $recipe_id})
+            MERGE (i:Ingredient {name: $name})
+            SET i.category = $category,
+                i.shelf_life = $shelf_life,
+                i.source = 'FoodKeeper'
+            MERGE (r)-[u:USES]->(i)
+            """,
+            recipe_id=recipe['id'],
+            name=shelf_data['matched_ingredient'],
+            category=shelf_data['category'],
+            shelf_life=shelf_data['shelf_life']
+            )
+        else:
+            print(f"Skip '{ner_ing_clean}': No shelf life data found")
+
 # Function to create Knowledge graph 
 def create_knowledge_graph(tx, recipe):
-    # Create Recipe node WITH directions
+    
+    # Create Recipe node with directions
     directions = ast.literal_eval(recipe['directions']) if isinstance(recipe['directions'], str) else recipe['directions']
 
     # Create Recipe node
@@ -102,7 +149,7 @@ def create_knowledge_graph(tx, recipe):
     directions=directions
     )
 
-    # USE NER INGREDIENTS INSTEAD OF RAW INGREDIENTS
+    # Use NER ingredients instead of raw ingredients as they are cleaner 
     ner_ingredients = ast.literal_eval(recipe['NER']) if isinstance(recipe['NER'], str) else recipe['NER']
     
     for ner_ing in ner_ingredients:
@@ -110,7 +157,7 @@ def create_knowledge_graph(tx, recipe):
         if not ner_ing:
             continue
             
-        # Use NER-based shelf life finding (much more accurate!)
+        # Use shelf life data
         shelf_data = find_shelf_life_data(ner_ing, shelf_life_df, foodkeeper_choices)
         
         # Use matched name if found, otherwise use NER name directly
@@ -131,24 +178,8 @@ def create_knowledge_graph(tx, recipe):
         category=shelf_data['category'],
         shelf_life=shelf_data['shelf_life'],
         source='FoodKeeper' if shelf_data['match_found'] else 'RecipeNLG',
-        ner_original=ner_ing  # Store the original NER for reference
+        ner_original=ner_ing
         )
-    
-    # Process Steps
-    # directions = ast.literal_eval(recipe['directions']) if isinstance(recipe['directions'], str) else recipe['directions']
-    # for step_num, step in enumerate(directions, 1):
-    #     if step.strip():
-    #         tx.run("""
-    #         MATCH (r:Recipe {id: $recipe_id})
-    #         MERGE (s:Step {id: $step_id})
-    #         SET s.description = $description,
-    #             s.order = $order
-    #         MERGE (r)-[h:HAS_STEP {order: $order}]->(s)
-    #         """,
-    #         recipe_id=recipe['id'],
-    #         step_id=f"{recipe['id']}_step_{step_num}",
-    #         description=step.strip(),
-    #         order=step_num)
 
 def main():
     try:
@@ -156,8 +187,7 @@ def main():
     except Exception as e:
         print(f"Failed to create Neo4j driver: {e}")
         return
-    
-    # Ask for confirmation before proceeding
+
     response = input("\nProceed with creating knowledge graph? (y/n): ")
     if response.lower() != 'y':
         print("Operation cancelled.")
