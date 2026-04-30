@@ -17,4 +17,66 @@ The main user-facing app (`app.py`) lets users:
 
 Recommendations are ranked to:
 1. maximize pantry usage,
-2. prioritize ingredients expiring soon,
+2. prioritize ingredients expiring soon
+
+
+## Setup
+
+### Prerequisites
+
+- Python 3.10+ recommended
+- Neo4j (AuraDB)
+- Replicate API token
+
+### 1) Create and activate a virtual environment
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+### 2) Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 3) Configure environment variables
+
+Create a `.env`. Use the `env.example` file as template.
+
+
+## Build the Neo4j Knowledge Graph
+
+Run:
+
+```bash
+python3 neo4j_kg.py
+```
+
+## Run the Main Application
+
+```bash
+streamlit run app.py
+```
+
+Then open the URL shown by Streamlit in your browser.
+
+## Evaluation / Testing
+
+### Manual evaluation scripts
+
+```bash
+python3 tests/manual_tests/constraint.py
+python3 tests/manual_tests/shelf_life.py
+```
+
+These scripts evaluate scenarios and export results to Excel files.
+
+### Deepeval-based evaluation scripts
+
+```bash
+cd tests/deepeval_tests
+python test_constraints.py
+python test_shelf_life.py
+```
