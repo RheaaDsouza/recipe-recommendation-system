@@ -2,7 +2,7 @@ import os
 import streamlit as st
 from langchain_community.graphs import Neo4jGraph
 # from langchain_community.llms import Replicate
-from langchain_community.chat_models import ChatOllama
+from langchain_groq import ChatGroq
 from langchain_community.chains.graph_qa.cypher import GraphCypherQAChain
 from langchain_core.prompts import PromptTemplate
 from langchain_classic.memory import ConversationBufferMemory # Standard import
@@ -28,7 +28,12 @@ def connection():
         password=NEO4J_PASSWORD,
         database=NEO4J_USERNAME,
     )
-    llm = ChatOllama(model="llama3.2", temperature=0) 
+
+    llm = ChatGroq(
+    model="llama-3.1-8b-instant",
+    temperature=0,
+    api_key=os.getenv("GROQ_API_KEY")
+    )
 
     # llm = Replicate(
     #     model="meta/meta-llama-3-8b-instruct",
@@ -76,14 +81,27 @@ AND NOT EXISTS {{
   WHERE ANY(a IN {allergies} WHERE toLower(bad.name) CONTAINS toLower(a))
 }}
 
-WITH r, safe_pantry, collect(i) AS matched_ingredients, 
-     sum(1.0 / (toFloat(coalesce(i.shelf_life_days, 999)) + 1.0)) AS urgency_score
-     
+WITH r, safe_pantry, collect(DISTINCT i) AS matched_ingredients
+
+MATCH (r)-[:USES]->(all_i:Ingredient)
+
+WITH r, matched_ingredients,
+     count(DISTINCT all_i) AS total_ingredients,
+     size(matched_ingredients) AS matched_count,
+     toFloat(size(matched_ingredients)) / toFloat(count(DISTINCT all_i)) AS match_pct,
+     sum(1.0 / (toFloat(coalesce(all_i.shelf_life_days, 999)) + 1.0)) AS urgency_score
+
+WHERE matched_count >= 1 AND match_pct >= 0.30
+
 RETURN r.title AS title, 
        r.directions AS directions, 
+       matched_count,
+       match_pct,
        urgency_score, 
+       [x IN matched_ingredients | x.name] AS pantry_items_used,
        [x IN matched_ingredients WHERE coalesce(x.shelf_life_days, 999) < 7 | x.name] AS expiring_items
-ORDER BY urgency_score DESC LIMIT 3;
+ORDER BY matched_count DESC, urgency_score DESC
+LIMIT 3
 
 Question: {question}
 Cypher Query:"""
@@ -100,7 +118,7 @@ Recommend recipes that uses maximum ingredients the user has
 available in their pantry, as given by the database below.
 
 User's Pantry: {pantry_list}
-Database Results: {context}
+Database Results (do NOT display this to the user): {context}
 
 Instructions:
 1. For each recipe found, emphasize why it was chosen (e.g., "This recipe helps you use up your [expiring items] which are about to spoil").

@@ -2,6 +2,7 @@ deepeval
 langchain
 langchain-community
 langchain-ollama
+langchain-groq
 pandas
 python-dotenv
 neo4j 
