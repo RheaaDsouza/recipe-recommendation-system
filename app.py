@@ -271,6 +271,8 @@ def followup_recipes(question: str) -> str:
 def run_streamlit():
     st.set_page_config(layout="wide", page_title="Pantry to Plate - Recipe Recommender")
 
+    connection()
+
     st.title("Pantry to Plate ")
     st.subheader("Recipe Recommendation System")
     st.info("""This chatbot interface is designed to help you find recipes 
@@ -291,11 +293,11 @@ def run_streamlit():
         st.divider()
 
         st.header("Your Pantry Ingredients")
-        pantry_input = st.text_area("Ingredients you have:", value="Eggs, Milk, Chicken, Spinach")
+        pantry_input = st.text_area("Ingredients you have:", placeholder="Eggs, Milk, Chicken, Spinach")
         # Store as a list for the prompt
         st.session_state.pantry_list = [x.strip() for x in pantry_input.split(",") if x.strip()]
         
-        allergies_input = st.text_input("Allergies (e.g. Peanuts, Gluten):", value="")
+        allergies_input = st.text_input("Allergies:", placeholder="Peanuts, Gluten")
         # Clean allergies list
         st.session_state.allergies = [x.strip().lower() for x in allergies_input.split(",") if x.strip()]
         
@@ -314,17 +316,24 @@ def run_streamlit():
             st.markdown(prompt)
 
         with st.chat_message("assistant"):
-            with st.spinner("Searching the Knowledge Graph..."):
-                intent = classify_intent(prompt)
-                if intent == "FOLLOWUP":
-                    output = followup_recipes(prompt)
-                else:
-                    output = get_recipes(prompt)
-
+            if not st.session_state.get("pantry_list"):
+                output = "Please add some ingredients to the input field in the sidebar before asking for recommendations!"
                 st.markdown(output)
+                st.session_state.memory.save_context(
+                    {"input": prompt}, {"output": output}
+                )
+            else: 
+                with st.spinner("Searching the Knowledge Graph..."):
+                    intent = classify_intent(prompt)
+                    if intent == "FOLLOWUP":
+                        output = followup_recipes(prompt)
+                    else:
+                        output = get_recipes(prompt)
 
-                # Save to memory
-                st.session_state.memory.save_context({"input": prompt}, {"output": output})
+                    st.markdown(output)
+
+                    # Save to memory
+                    st.session_state.memory.save_context({"input": prompt}, {"output": output})
 
 if __name__ == "__main__":
     run_streamlit()
